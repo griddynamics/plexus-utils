@@ -26,7 +26,7 @@ limitations under the License.
   </parent>
 
   <artifactId>plexus-utils</artifactId>
-  <version>3.0.5</version>
+  <version>3.0-FOO</version>
 
   <name>Plexus Common Utilities</name>
   <description>A collection of various utility classes to ease working with strings, files, command lines, XML and more.</description>
@@ -42,6 +42,37 @@ limitations under the License.
     <url>http://jira.codehaus.org/browse/PLXUTILS</url>
   </issueManagement>
 
+  <distributionManagement>
+    <!-- Our proprietary Nexus repo to store the changes: -->
+    <repository>
+      <id>patched-surefire-and-plexus-utils</id>
+      <url>http://black.calf.lupus.griddynamics.net:8081/nexus/content/repositories/patched-surefire-and-plexus-utils</url>
+    </repository>
+    <!-- <repository>
+      <id>plexus-releases</id>
+      <name>Plexus Release Repository</name>
+      <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+    </repository> -->
+    <snapshotRepository>
+      <id>plexus-snapshots</id>
+      <name>Plexus Snapshot Repository</name>
+      <url>${plexusDistMgmtSnapshotsUrl}</url>
+    </snapshotRepository>
+    <site>
+      <id>codehaus.org</id>
+      <url>dav:https://dav.codehaus.org/plexus</url>
+    </site>
+  </distributionManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>3.8.2</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+  
   <build>
     <plugins>
       <plugin>
