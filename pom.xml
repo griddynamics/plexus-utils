@@ -27,7 +27,7 @@ limitations under the License.
 
   <groupId>org.codehaus.plexus</groupId>  
   <artifactId>plexus-utils</artifactId>
-  <version>3.0</version>
+  <version>3.0-FOO</version>
 
   <name>Plexus Common Utilities</name>
   <description>A collection of various utility classes to ease working with strings, files, command lines, XML and more.</description>
@@ -44,11 +44,16 @@ limitations under the License.
   </issueManagement>
 
   <distributionManagement>
+    <!-- Our proprietary Nexus repo to store the changes: -->
     <repository>
+      <id>patched-surefire-and-plexus-utils</id>
+      <url>http://black.calf.lupus.griddynamics.net:8081/nexus/content/repositories/patched-surefire-and-plexus-utils</url>
+    </repository>
+    <!-- <repository>
       <id>plexus-releases</id>
       <name>Plexus Release Repository</name>
       <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
-    </repository>
+    </repository> -->
     <snapshotRepository>
       <id>plexus-snapshots</id>
       <name>Plexus Snapshot Repository</name>
