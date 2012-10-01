@@ -523,31 +523,6 @@ public abstract class CommandLineUtils
 	}
 	
 	/*
-	 * testing purposes only
-	 */
-	public static void main(String... args) {
-		//System.out.println("sleeping 5...");
-		//safeSleep(5000);
-//		//System.out.println("done.");
-//		final AbstractProcessHelper helper = getProcessHelper();
-//		final long pid = 19112;
-//		System.out.println("PID  = "+ pid);
-////		final long pgid = helper.getPgid(pid);
-////		System.out.println("PGID = "+ pgid);
-//		
-//		//killChildrenAndProcess(helper, pid, UnixProcessHelper.SIGQUIT, "");
-//		//safeSleep(1000);
-//		killChildrenAndProcess(helper, pid, UnixProcessHelper.SIGTERM, "foo(\\.exe)?", null, 2, 1000);
-//		killChildrenAndProcess(helper, pid, UnixProcessHelper.SIGTERM, "sleep(\\.exe)?", null, 2, 1000);
-//		killChildrenAndProcess(helper, pid, UnixProcessHelper.SIGKILL, null, null, 10, 1000);
-		
-		
-//		CommandLine cl = new CommandLine();
-//		StreamConsumer sc = new ThreadedStr
-//		int exit = executeCommandLine(cl, );
-	}
-	
-	/*
 	 * Sleeps given number of milliseconds and ignores all interrupts sent to the caller thread. 
 	 */
 	private static void safeSleep(final long millis) {
@@ -722,7 +697,7 @@ public abstract class CommandLineUtils
             throw new IllegalArgumentException( "cl cannot be null." );
         }
         
-        System.out.println("##### [CommandLineUtils, v0.22]: Starting up subprocess "+Arrays.toString(cl.getShellCommandline())+" with timeout = "+timeoutInSeconds+" sec.");
+        System.out.println("##### [CommandLineUtils, v0.23]: Starting up subprocess "+Arrays.toString(cl.getShellCommandline())+" with timeout = "+timeoutInSeconds+" sec.");
         final Process p = cl.execute();
 
         final StreamFeeder inputFeeder = systemIn != null ?
@@ -747,12 +722,13 @@ public abstract class CommandLineUtils
             public Integer call()
                 throws CommandLineException
             {
+        	      boolean makeFullThreadDump = true;
                 try
                 {
                     int returnValue;
                     if ( timeoutInSeconds <= 0 )
                     {
-                        returnValue = p.waitFor();
+                        returnValue = p.waitFor(); // NB: may be interrupt()-ed here.
                     }
                     else
                     {
@@ -761,12 +737,13 @@ public abstract class CommandLineUtils
                         final long finish = now + timeoutInMillis;
                         while ( isAlive( p ) && ( System.currentTimeMillis() < finish ) )
                         {
-                            Thread.sleep( WAIT_SLEEP_PERIOD_MS );
+                          Thread.sleep( WAIT_SLEEP_PERIOD_MS ); // NB: may be interrupt()-ed here.
                         }
                         if ( isAlive( p ) )
                         {
+                          // process timeout:
                         	System.out.println("##### process timed out after "+timeoutInSeconds+" seconds.");
-                            throw new InterruptedException( "Process timeout out after " + timeoutInSeconds + " seconds" );
+                            throw new CommandLineTimeOutException( "Process timeout out after " + timeoutInSeconds + " seconds." );
                         }
                         returnValue = p.exitValue();
                     }
@@ -787,23 +764,17 @@ public abstract class CommandLineUtils
                 	System.out.println("Process finished with exit status "+returnValue);
                     return returnValue;
                 }
-                catch ( InterruptedException ex )
+                catch (InterruptedException ie)
                 {
-                    // NB: commented out because need to pump the full thread dump: do not disturb the process yet.
-                	// the feeders will be closed anyway in "finally" block. 
-//                    if ( inputFeeder != null )
-//                    {
-//                        inputFeeder.disable();
-//                    }
-                    //outputPumper.disable();
-                    //errorPumper.disable();
-                    throw new CommandLineTimeOutException( "Error while executing external command, process killed.", ex );
+                  // NB: do not make FTD since this is *not* a real timeout: we just shouldn't wait for the process any more:
+                  makeFullThreadDump = false;  
+                  throw new CommandLineTimeOutException( "Interrupted while waiting for the test process to end: ", ie );
                 }
                 finally
                 {
                     ShutdownHookUtils.removeShutdownHook( processHookThread );
 
-                    final boolean terminated = processHookThread.run(true/*make full thread dump*/);
+                    final boolean terminated = processHookThread.run(makeFullThreadDump/*make full thread dump*/);
                     if (terminated) {
                     	try {
                     		// fully read the output:
