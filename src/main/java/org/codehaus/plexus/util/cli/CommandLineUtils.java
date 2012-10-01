@@ -764,11 +764,11 @@ public abstract class CommandLineUtils
                 	System.out.println("Process finished with exit status "+returnValue);
                     return returnValue;
                 }
-                catch (InterruptedException ie)
+                catch (final InterruptedException ie)
                 {
                   // NB: do not make FTD since this is *not* a real timeout: we just shouldn't wait for the process any more:
                   makeFullThreadDump = false;  
-                  throw new CommandLineTimeOutException( "Interrupted while waiting for the test process to end: ", ie );
+                  throw new CommandLineTimeOutException( "Interrupted while waiting for the test process to end: "+ie.toString(), ie );
                 }
                 finally
                 {
