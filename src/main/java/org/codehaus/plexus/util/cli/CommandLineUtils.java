@@ -760,8 +760,9 @@ public abstract class CommandLineUtils
                     {
                         throw new CommandLineException( "Error inside systemErr parser", errExc );
                     }
-
-                	System.out.println("Process finished with exit status "+returnValue);
+                    if (returnValue != 0) {
+                	      System.out.println("Process finished with exit status "+returnValue);
+                    }
                     return returnValue;
                 }
                 catch (final InterruptedException ie)
