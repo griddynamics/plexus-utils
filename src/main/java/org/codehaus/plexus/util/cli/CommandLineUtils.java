@@ -698,7 +698,6 @@ public abstract class CommandLineUtils
             throw new IllegalArgumentException( "cl cannot be null." );
         }
         
-        System.out.println("##### [CommandLineUtils, v0.23]: Starting up subprocess "+Arrays.toString(cl.getShellCommandline())+" with timeout = "+timeoutInSeconds+" sec.");
         final Process p = cl.execute();
 
         final StreamFeeder inputFeeder = systemIn != null ?
