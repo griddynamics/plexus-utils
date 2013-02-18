@@ -23,6 +23,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.Reader;
+import java.io.StringReader;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -35,6 +36,9 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.StringTokenizer;
 import java.util.Vector;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import org.codehaus.plexus.util.Os;
 import org.codehaus.plexus.util.ReaderFactory;
 import org.codehaus.plexus.util.StringUtils;
@@ -156,6 +160,7 @@ public abstract class CommandLineUtils
 //			} 
 //			return -1L;
 //    	}
+    	
     	@Override
     	public long getPid(Process process) {
     		try {
@@ -171,11 +176,12 @@ public abstract class CommandLineUtils
     				return -1L;
     			}
     		} catch (Exception e) {
-				System.out.println("ERROR: cannot get pid of the process:");
+			    System.out.println("ERROR: cannot get pid of the process:");
     			e.printStackTrace(System.out);
     			return -1L;
     		}
     	}
+    	
     	@Override
     	public boolean exists(final long pid) {
     		final ProcessResult result = getProcessOutput(new String[] { ps, Long.toString(pid) });
@@ -186,24 +192,85 @@ public abstract class CommandLineUtils
     		int status = result.exitCode; 
     		return (status == 0);
     	}
+    	
     	@Override
     	public long[] getChildrenPIDs(long ppid) {
-    		ProcessResult result = getProcessOutput(new String[] { ps, "-o", "pid=", "--ppid", Long.toString(ppid) });
-    		if (result == null) {
-    			System.out.println("ERROR: ps command failed.");
-    			return new long[0];
-    		}
-    		String output = result.stdOut.trim();
-    		if (output.length() == 0) {
-    			return new long[0]; // no children
-    		}
-    		String[] pidStrs = output.split("\\s+");
-    		long[] pids = new long[pidStrs.length];
-    		for (int i=0; i<pidStrs.length; i++) {
-    			pids[i] = Long.parseLong(pidStrs[i]); 
-    		}
-    		return pids;
+//    		ProcessResult result = getProcessOutput(new String[] { ps, "-o", "pid=", "--ppid", Long.toString(ppid) });
+//    		if (result == null) {
+//    			System.out.println("ERROR: ps command failed.");
+//    			return new long[0];
+//    		}
+//    		String output = result.stdOut.trim();
+//    		if (output.length() == 0) {
+//    			return new long[0]; // no children
+//    		}
+//    		String[] pidStrs = output.split("\\s+");
+//    		long[] pids = new long[pidStrs.length];
+//    		for (int i=0; i<pidStrs.length; i++) {
+//    			pids[i] = Long.parseLong(pidStrs[i]); 
+//    		}
+//    		return pids;
+    	  
+    	  // ===============================================
+    	  // NB: new implementation supposed to work on 
+    	  // a wider range of Unix systems, e.g. on Mac OSX, 
+    	  // which does not appear to support "--ppid" option.
+    	  // NB: "x" option (not "-x"!) is needed to include all the processes of
+    	  // the current user including the ones running on other ttys or w/o any tty. 
+        final ProcessResult result = getProcessOutput(
+            new String[] { ps, "x", "-o", "ppid=", "-o", "pid=" });
+        if (result == null) {
+          System.out.println("ERROR: ps command failed.");
+          return new long[0];
+        }
+        String output = result.stdOut.trim();
+        if (output.length() == 0) {
+          return new long[0]; // no children
+        }
+        try {
+          final long[] pids = extractPidsByPpid(ppid, output);
+          return pids;
+        } catch (IOException ioe) {
+          throw new RuntimeException(ioe);
+        }
     	}
+    	
+    	/*
+    	 * "output" expected to be in form 
+    	 *  ppid1 pid1
+    	 *  ppid2 pid2
+    	 *  ppid3 pid3
+    	 *  ...
+    	 */
+    	private long[] extractPidsByPpid(final long ppid, String output) throws IOException {
+    	  final List<String> pidStrList = new ArrayList<String>(4);
+    	  final BufferedReader br = new BufferedReader(new StringReader(output));
+    	  final Pattern ppidPidPattern 
+    	    = Pattern.compile("\\s*"+Long.toString(ppid)+"\\s+([0-9]+)\\s*");
+    	  try {
+    	    String line;
+    	    while (true) {
+    	      line = br.readLine();
+    	      if (line == null) {
+    	        break;
+    	      } else {
+    	        Matcher m = ppidPidPattern.matcher(line);
+    	        if (m.matches()) {
+    	          // take the pid:
+    	          pidStrList.add(m.group(1));
+    	        }
+    	      }
+    	    } 
+    	  } finally {
+    	    br.close();
+    	  }
+        final long[] pids = new long[pidStrList.size()];
+        for (int i=0; i<pids.length; i++) {
+          pids[i] = Long.parseLong(pidStrList.get(i)); 
+        }
+        return pids;
+    	}
+    	
     	@Override
 		public void nativeKill(final long pgid/*
 											 * NB: positive for process, and
@@ -348,7 +415,6 @@ public abstract class CommandLineUtils
 		}
 		final AbstractProcessHelper helper = getProcessHelper();
 		long pid = -1L; // real (OS) pid of the process
-		//long pgid = -1L; // process group id
 		List<Long> childrenPids = null;
 		// making the Full Thread Dump of the hung process, if needed:
 		if (makeFullThreadDump && isAlive(p)) {
@@ -369,32 +435,27 @@ public abstract class CommandLineUtils
 			}
 		}
 
-		if (isAlive(p)) {
-			// destroy it with Java means:
-			//p.destroy();
-			//if (isAlive(p)) {
-			//	safeSleep(WAIT_AFTER_KILL_MILLIS); // wait some time after #destroy() to let the process die.
-			//	if (isAlive(p)) {
-			//		System.out
-			//				.println("########## WARN: ! Process#destroy() failed to kill the process.");
-					// the process is still alive, get its pid:
-					if (pid <= 0) {
-						pid = helper.getPid(p);
-					}
-					if (pid <= 0) {
-						System.out
-								.println("ERROR: Cannot kill the process since cannot determine its PID. Sorry. Aborting JVM.");
-						System.exit(78); // *** terminate JVM.
-					} else {
-						System.out.println("The process PID known to be "+pid+".");
-						// kill -TERM:
-						childrenPids = killChildrenAndProcess(helper, pid, UnixProcessHelper.SIGTERM, null, childrenPids, 2/*attempts*/, WAIT_AFTER_KILL_MILLIS);
-						// kill -KILL:
-						childrenPids = killChildrenAndProcess(helper, pid, UnixProcessHelper.SIGKILL, null, childrenPids, 10/*attempts*/, WAIT_AFTER_KILL_MILLIS * 2);
-					}
-			//	}
-			//}
-		}
+    if (isAlive(p)) {
+      // the process is still alive, get its pid:
+      if (pid <= 0) {
+        pid = helper.getPid(p);
+      }
+      if (pid <= 0) {
+        System.out
+            .println("ERROR: Cannot kill the process since cannot determine its PID. Sorry. Aborting JVM.");
+        System.exit(78); // *** terminate JVM.
+      } else {
+        System.out.println("The process PID known to be " + pid + ".");
+        // kill -TERM:
+        childrenPids = killChildrenAndProcess(helper, pid,
+            UnixProcessHelper.SIGTERM, null, childrenPids, 2/* attempts */,
+            WAIT_AFTER_KILL_MILLIS);
+        // kill -KILL:
+        childrenPids = killChildrenAndProcess(helper, pid,
+            UnixProcessHelper.SIGKILL, null, childrenPids, 10/* attempts */,
+            WAIT_AFTER_KILL_MILLIS * 2);
+      }
+    }
 		
 		// finally check the result:
 		if (pid > 0 && childrenPids == null) {
@@ -408,10 +469,8 @@ public abstract class CommandLineUtils
 			System.out
 					.println("######### FATAL: native kill faild to kill the process ["
 							+ pid + "] or some of its child processes.");
-			//System.exit(77); // *** terminate JVM.
 			return false;
 		} else {
-			//System.out.println("Process " + ((pid > 0) ? (pid+" ") : "") + "and all its children are successfully killed.");
 			return true;
 		}
 	}
@@ -607,7 +666,7 @@ public abstract class CommandLineUtils
 		try {
 			ProcessBuilder pb = new ProcessBuilder(cmd);
 			pb.redirectErrorStream(true); // NB: merge sterr to stdout
-			System.out.println("Running command "+Arrays.toString(cmd)+".");
+			//System.out.println("Running command "+Arrays.toString(cmd)+".");
 			final ByteArrayOutputStream baos = new ByteArrayOutputStream(512);
 			Process p = pb.start();
 			InputStream is = p.getInputStream();
