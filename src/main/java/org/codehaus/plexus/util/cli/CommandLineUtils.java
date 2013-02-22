@@ -18,6 +18,7 @@ package org.codehaus.plexus.util.cli;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -142,9 +143,13 @@ public abstract class CommandLineUtils
     	public static final int SIGKILL = 9;
     	public static final int SIGTERM = 15;
     	
+      // regex that identifies Java process "comm":
+      public static final String JAVA_COMM_REGEX = "java(\\.exe)?"; 
+    	
     	// may be redefined somehow, if needed:
     	private final String ps = "/bin/ps";
     	private final String kill = "/bin/kill";
+    	
     	
 //    	@Override
 //    	public long getPgid(long pid) {
@@ -312,7 +317,11 @@ public abstract class CommandLineUtils
 							+ " returned no result.");
 					return null;
 				} else {
-					return processResult.stdOut.trim();
+				  // NB: on MacOS comm may return *full* executable name, like
+				  // "/System/Library/Java/JavaVirtualMachines/1.6.0.jdk/Contents/Home/bin/java",
+				  // but we need only the executable's base name:  
+				  String shortComm = getShortComm(processResult.stdOut.trim());
+					return shortComm;
 				}
 			} catch (Exception e) {
 				System.out.println("Error while killing the process:");
@@ -320,6 +329,16 @@ public abstract class CommandLineUtils
 				return null;
 			}
     	}
+    	
+      private static String getShortComm(String comm) {
+        final int lastSepIndex = comm.lastIndexOf(File.separatorChar);
+        if (lastSepIndex < 0) {
+          return comm; 
+        } else {
+          return comm.substring(lastSepIndex + 1, comm.length());
+        }
+      }
+    	
     }  
     
     private static class ProcessHook extends Thread {
@@ -426,7 +445,8 @@ public abstract class CommandLineUtils
 				} else {
 					System.out.println("Making full thread dump on ["+pid+"] and children...");
 					// NB: signal only java processes:
-					childrenPids = killChildrenAndProcess(helper, pid, UnixProcessHelper.SIGQUIT, "java(\\.exe)?", childrenPids, 
+					childrenPids = killChildrenAndProcess(helper, pid, 
+					    UnixProcessHelper.SIGQUIT, UnixProcessHelper.JAVA_COMM_REGEX, childrenPids, 
 							1/*attempt*/, WAIT_AFTER_KILL_MILLIS);
 				}
 			} else {
