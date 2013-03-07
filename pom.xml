@@ -45,8 +45,8 @@ limitations under the License.
   <distributionManagement>
     <!-- Our proprietary Nexus repo to store the changes: -->
     <repository>
-      <id>patched-surefire-and-plexus-utils</id>
-      <url>http://black.calf.lupus.griddynamics.net:8081/nexus/content/repositories/patched-surefire-and-plexus-utils</url>
+      <id>aws-nexus</id>
+      <url>http://ec2-54-235-46-104.compute-1.amazonaws.com:8081/nexus/content/repositories/releases</url>
     </repository>
     <!-- <repository>
       <id>plexus-releases</id>
